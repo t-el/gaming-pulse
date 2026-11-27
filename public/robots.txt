@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://t-el.github.io/gaming-pulse/sitemap-index.xml

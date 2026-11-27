@@ -1,0 +1,33 @@
+---
+import type { EditionFrontmatter } from '../content/schema';
+import { formatTime } from '../lib/format';
+import { editionAnchor } from '../lib/paths';
+
+interface Props {
+  editions: EditionFrontmatter[];
+  /** When set, links go to the report page. Otherwise they jump within the page. */
+  reportHref?: string;
+}
+
+const { editions, reportHref } = Astro.props;
+---
+
+<nav class="edition-nav" aria-label="Editions">
+  <ol>
+    {
+      editions.map((edition) => {
+        const anchor = editionAnchor(edition.id);
+        const href = reportHref ? `${reportHref}#${anchor}` : `#${anchor}`;
+        return (
+          <li>
+            <a href={href}>
+              <span class="edition-time">{formatTime(edition.publishedAt)}</span>
+              <span class="edition-name">{edition.title}</span>
+              {edition.summary && <span class="edition-summary">{edition.summary}</span>}
+            </a>
+          </li>
+        );
+      })
+    }
+  </ol>
+</nav>

@@ -1,0 +1,91 @@
+---
+import { render } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import EditionNav from '../../components/EditionNav.astro';
+import { getReports, reportPath } from '../../lib/reports';
+import { formatLongDate, formatUpdated } from '../../lib/format';
+import { absoluteUrl, href, mediaUrl, tagSlug } from '../../lib/paths';
+
+export async function getStaticPaths() {
+  const reports = await getReports();
+  return reports.map((report) => ({
+    params: { id: report.id },
+    props: { report },
+  }));
+}
+
+const { report } = Astro.props;
+const { Content } = await render(report);
+const { data } = report;
+const pagePath = reportPath(report);
+const canonicalPath = absoluteUrl(pagePath);
+const firstPublished = data.editions[0]?.publishedAt ?? data.updated;
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'NewsArticle',
+  headline: data.title,
+  description: data.description,
+  datePublished: firstPublished.toISOString(),
+  dateModified: data.updated.toISOString(),
+  keywords: data.tags.join(', '),
+  mainEntityOfPage: canonicalPath,
+  url: canonicalPath,
+  author: { '@type': 'Organization', name: 'Gaming Pulse' },
+  publisher: {
+    '@type': 'Organization',
+    name: 'Gaming Pulse',
+    url: absoluteUrl('/'),
+  },
+  ...(data.sample ? { creativeWorkStatus: 'Sample' } : {}),
+};
+---
+
+<BaseLayout
+  title={data.title}
+  description={data.description}
+  ogType="article"
+  image={data.cover}
+  published={firstPublished}
+  updated={data.updated}
+  tags={data.tags}
+  jsonLd={jsonLd}
+>
+  <nav class="crumbs" aria-label="Breadcrumb">
+    <ol>
+      <li><a href={href('/')}>Today</a></li>
+      <li><a href={href(`/archive/${data.date.slice(0, 4)}/${data.date.slice(5, 7)}/`)}>Archive</a></li>
+      <li aria-current="page">{formatLongDate(data.date)}</li>
+    </ol>
+  </nav>
+
+  <article>
+    {data.sample && (
+      <p class="sample-banner">
+        <strong>Sample content.</strong> This file shows the report format the site builds. It is not a live Gaming Pulse wire story. Confirm details with the linked outlets.
+      </p>
+    )}
+    <p class="kicker">{formatLongDate(data.date)}</p>
+    <h1>{data.title}</h1>
+    <p class="lede">{data.description}</p>
+    <p class="meta-row">
+      <span>Updated {formatUpdated(data.updated)}</span>
+      <span aria-hidden="true">·</span>
+      <span>{data.editions.length} {data.editions.length === 1 ? 'edition' : 'editions'}</span>
+    </p>
+    <p class="tag-row">
+      {
+        data.tags.map((tag) => (
+          <a class="tag" href={href(`/tags/${tagSlug(tag)}/`)}>
+            {tag}
+          </a>
+        ))
+      }
+    </p>
+    {data.cover && <img class="cover" src={mediaUrl(data.cover)} alt={data.title} />}
+    <EditionNav editions={data.editions} />
+    <div class="prose">
+      <Content />
+    </div>
+  </article>
+</BaseLayout>

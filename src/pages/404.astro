@@ -1,0 +1,13 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { href } from '../lib/paths';
+---
+
+<BaseLayout title="Page not found" description="That page is not on Gaming Pulse.">
+  <p class="kicker">404</p>
+  <h1>Signal lost</h1>
+  <p class="lede">That page is not in the briefing archive.</p>
+  <p>
+    <a class="button" href={href('/')}>Back to today</a>
+  </p>
+</BaseLayout>

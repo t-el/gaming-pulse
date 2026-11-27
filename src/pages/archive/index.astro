@@ -1,0 +1,33 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { getReports, groupByMonth } from '../../lib/reports';
+import { formatMonth } from '../../lib/format';
+import { href } from '../../lib/paths';
+
+const months = groupByMonth(await getReports());
+const description = 'Browse Gaming Pulse briefings by month. Each day is one file with up to three editions.';
+---
+
+<BaseLayout title="Archive" description={description}>
+  <p class="kicker">By month</p>
+  <h1>Archive</h1>
+  <p class="lede">{description}</p>
+  {
+    months.length > 0 ? (
+      <ul class="month-list">
+        {months.map((group) => (
+          <li>
+            <a class="month-link" href={href(`/archive/${group.year}/${group.month}/`)}>
+              <span>{formatMonth(group.year, group.month)}</span>
+              <span class="count">
+                {group.reports.length} {group.reports.length === 1 ? 'briefing' : 'briefings'}
+              </span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    ) : (
+      <p class="empty">No briefings have been published yet.</p>
+    )
+  }
+</BaseLayout>

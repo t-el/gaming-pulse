@@ -1,0 +1,41 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import ReportCard from '../../../components/ReportCard.astro';
+import { getReports, groupByMonth } from '../../../lib/reports';
+import { formatMonth } from '../../../lib/format';
+import { href } from '../../../lib/paths';
+
+export async function getStaticPaths() {
+  const groups = groupByMonth(await getReports());
+  return groups.map((group) => ({
+    params: { year: group.year, month: group.month },
+    props: { group },
+  }));
+}
+
+const { group } = Astro.props;
+const label = formatMonth(group.year, group.month);
+const description = `Gaming Pulse briefings from ${label}.`;
+---
+
+<BaseLayout title={label} description={description}>
+  <nav class="crumbs" aria-label="Breadcrumb">
+    <ol>
+      <li><a href={href('/')}>Today</a></li>
+      <li><a href={href('/archive/')}>Archive</a></li>
+      <li aria-current="page">{label}</li>
+    </ol>
+  </nav>
+  <p class="kicker">Month</p>
+  <h1>{label}</h1>
+  <p class="lede">{description}</p>
+  <ul class="card-list">
+    {
+      group.reports.map((report) => (
+        <li>
+          <ReportCard report={report} />
+        </li>
+      ))
+    }
+  </ul>
+</BaseLayout>

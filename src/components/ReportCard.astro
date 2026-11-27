@@ -1,0 +1,32 @@
+---
+import type { Report } from '../lib/reports';
+import { formatLongDate } from '../lib/format';
+import { href, tagSlug } from '../lib/paths';
+import { reportPath } from '../lib/reports';
+
+interface Props {
+  report: Report;
+  headingLevel?: 'h2' | 'h3';
+}
+
+const { report, headingLevel = 'h2' } = Astro.props;
+const Title = headingLevel;
+---
+
+<article class="report-card">
+  <p class="card-date">{formatLongDate(report.data.date)}</p>
+  <Title class="card-title">
+    <a href={href(reportPath(report))}>{report.data.title}</a>
+  </Title>
+  <p>{report.data.description}</p>
+  <p class="tag-row">
+    {
+      report.data.tags.map((tag) => (
+        <a class="tag" href={href(`/tags/${tagSlug(tag)}/`)}>
+          {tag}
+        </a>
+      ))
+    }
+    <span>{report.data.editions.length} {report.data.editions.length === 1 ? 'edition' : 'editions'}</span>
+  </p>
+</article>

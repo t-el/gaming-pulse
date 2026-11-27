@@ -1,0 +1,82 @@
+---
+import { getReports, reportPath } from '../lib/reports';
+import { formatLongDate } from '../lib/format';
+import { absoluteUrl, href } from '../lib/paths';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import EditionNav from '../components/EditionNav.astro';
+import ReportCard from '../components/ReportCard.astro';
+
+const reports = await getReports();
+const latest = reports[0];
+const recent = reports.slice(1);
+const description = latest
+  ? latest.data.description
+  : 'Three gaming news editions a day: morning, afternoon, and evening, Eastern time.';
+
+const jsonLd = latest
+  ? {
+      '@context': 'https://schema.org',
+      '@type': 'WebSite',
+      name: 'Gaming Pulse',
+      url: absoluteUrl('/'),
+      description,
+      publisher: { '@type': 'Organization', name: 'Gaming Pulse' },
+    }
+  : undefined;
+---
+
+<BaseLayout title="Gaming Pulse" description={description} jsonLd={jsonLd}>
+  {
+    latest ? (
+      <section class="hero" aria-labelledby="latest-heading">
+        <div class="hero-panel">
+          <p class="kicker">Latest briefing</p>
+          {latest.data.sample && (
+            <p class="sample-banner">
+              <strong>Sample content.</strong> This briefing demonstrates the edition format. It is not a live wire report.
+            </p>
+          )}
+          <p class="card-date">{formatLongDate(latest.data.date)}</p>
+          <h1 id="latest-heading">{latest.data.title}</h1>
+          <p class="lede">{latest.data.description}</p>
+          <EditionNav editions={latest.data.editions} reportHref={href(reportPath(latest))} />
+          <p>
+            <a class="button" href={href(reportPath(latest))}>
+              Read the full briefing
+            </a>
+          </p>
+        </div>
+      </section>
+    ) : (
+      <section class="hero">
+        <p class="kicker">Latest briefing</p>
+        <h1>No briefings yet</h1>
+        <p class="lede">
+          The first file in <code>content/reports</code> will land here. Morning, afternoon, and evening editions share one file per day.
+        </p>
+      </section>
+    )
+  }
+
+  <section aria-labelledby="recent-heading">
+    <div class="section-head">
+      <h2 id="recent-heading">Recent briefings</h2>
+      <a href={href('/archive/')}>Archive</a>
+    </div>
+    {
+      recent.length > 0 ? (
+        <ul class="card-list">
+          {recent.map((report) => (
+            <li>
+              <ReportCard report={report} headingLevel="h3" />
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p class="empty">
+          Earlier days will stack up here as new <code>content/reports/YYYY-MM-DD.md</code> files are committed.
+        </p>
+      )
+    }
+  </section>
+</BaseLayout>

@@ -1,0 +1,39 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import ReportCard from '../../components/ReportCard.astro';
+import { getReports, reportsByTag } from '../../lib/reports';
+import { href, tagSlug } from '../../lib/paths';
+
+export async function getStaticPaths() {
+  const grouped = reportsByTag(await getReports());
+  return [...grouped.entries()].map(([tag, reports]) => ({
+    params: { tag: tagSlug(tag) },
+    props: { tag, reports },
+  }));
+}
+
+const { tag, reports } = Astro.props;
+const description = `Gaming Pulse briefings tagged “${tag}”.`;
+---
+
+<BaseLayout title={tag} description={description}>
+  <nav class="crumbs" aria-label="Breadcrumb">
+    <ol>
+      <li><a href={href('/')}>Today</a></li>
+      <li><a href={href('/tags/')}>Tags</a></li>
+      <li aria-current="page">{tag}</li>
+    </ol>
+  </nav>
+  <p class="kicker">Tag</p>
+  <h1>{tag}</h1>
+  <p class="lede">{description}</p>
+  <ul class="card-list">
+    {
+      reports.map((report) => (
+        <li>
+          <ReportCard report={report} />
+        </li>
+      ))
+    }
+  </ul>
+</BaseLayout>
