@@ -1,0 +1,472 @@
+{
+  "name": "Gaming Pulse reports",
+  "nodes": [
+    {
+      "id": "0d8b148d-4687-4e7b-be9c-cc6b1b116331",
+      "name": "Setup notes",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        280
+      ],
+      "parameters": {
+        "content": "## Gaming Pulse reports\n\nTimezone must be America/New_York.\n\nCredentials are placeholders:\n- GitHub token with contents write on t-el/gaming-pulse\n- OpenAI-compatible key. For xAI set base URL https://api.x.ai/v1 and model grok-4. For OpenAI leave the default base URL and change the model id.\n\nNo secrets are stored in this file.",
+        "height": 280,
+        "width": 420,
+        "color": 5
+      }
+    },
+    {
+      "id": "18390585-adbc-45c9-acac-f0370160192d",
+      "name": "Schedule 8am 2pm 8pm ET",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        240,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "daysInterval": 1,
+              "triggerAtHour": 8,
+              "triggerAtMinute": 0
+            },
+            {
+              "field": "days",
+              "daysInterval": 1,
+              "triggerAtHour": 14,
+              "triggerAtMinute": 0
+            },
+            {
+              "field": "days",
+              "daysInterval": 1,
+              "triggerAtHour": 20,
+              "triggerAtMinute": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "a4361444-979b-403d-9f10-5c3447199595",
+      "name": "Resolve edition",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const now = new Date();\nconst timeZone = 'America/New_York';\nconst list = new Intl.DateTimeFormat('en-US', {\n  timeZone,\n  year: 'numeric',\n  month: '2-digit',\n  day: '2-digit',\n  hour: '2-digit',\n  minute: '2-digit',\n  second: '2-digit',\n  hourCycle: 'h23',\n  timeZoneName: 'shortOffset',\n}).formatToParts(now);\nconst p = Object.fromEntries(list.map((part) => [part.type, part.value]));\nconst hour = Number(p.hour);\nlet editionId = 'evening';\nlet editionTitle = 'Evening Edition';\nlet slotHour = '20';\nlet timeLabel = '8:00 PM ET';\nif (hour < 12) {\n  editionId = 'morning';\n  editionTitle = 'Morning Edition';\n  slotHour = '08';\n  timeLabel = '8:00 AM ET';\n} else if (hour < 18) {\n  editionId = 'afternoon';\n  editionTitle = 'Afternoon Edition';\n  slotHour = '14';\n  timeLabel = '2:00 PM ET';\n}\nconst hh = String(hour).padStart(2, '0');\nconst mm = String(p.minute).padStart(2, '0');\nconst ss = String(p.second).padStart(2, '0');\nconst date = p.year + '-' + p.month + '-' + p.day;\nconst offsetMatch = String(p.timeZoneName || '').match(/GMT([+-])(\\d{1,2})(?::?(\\d{2}))?/);\nlet offset = '-05:00';\nif (offsetMatch) {\n  offset = offsetMatch[1] + String(offsetMatch[2]).padStart(2, '0') + ':' + (offsetMatch[3] || '00');\n}\nconst feeds = [\n  { outlet: 'IGN', url: 'https://www.ign.com/rss/v2/articles/feed' },\n  { outlet: 'GameSpot', url: 'https://www.gamespot.com/feeds/mashup/' },\n  { outlet: 'Polygon', url: 'https://www.polygon.com/rss/index.xml' },\n  { outlet: 'PC Gamer', url: 'https://www.pcgamer.com/rss/' },\n  { outlet: 'Eurogamer', url: 'https://www.eurogamer.net/feed' },\n];\nreturn [{\n  json: {\n    date,\n    editionId,\n    editionTitle,\n    timeLabel,\n    publishedAt: date + 'T' + slotHour + ':00:00' + offset,\n    updated: date + 'T' + hh + ':' + mm + ':' + ss + offset,\n    filePath: 'content/reports/' + date + '.md',\n    feeds,\n  },\n}];\n"
+      }
+    },
+    {
+      "id": "435e578a-7846-4e6e-8e21-d8221bd16fda",
+      "name": "Split feeds",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        800,
+        0
+      ],
+      "parameters": {
+        "fieldToSplitOut": "feeds",
+        "options": {}
+      }
+    },
+    {
+      "id": "a9144d52-eb48-4e7c-93bb-98f7f42a3cb3",
+      "name": "Read RSS",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.1,
+      "position": [
+        1040,
+        0
+      ],
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "options": {}
+      },
+      "onError": "continueRegularOutput",
+      "continueOnFail": true
+    },
+    {
+      "id": "a5fa2e69-b21e-43a8-a566-93fc8c06c89f",
+      "name": "Aggregate stories",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        1280,
+        0
+      ],
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "options": {}
+      }
+    },
+    {
+      "id": "4e5c6802-eb5e-4a6b-a710-2cfa7a78ff82",
+      "name": "Build source brief",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1520,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const edition = $('Resolve edition').first().json;\nconst inputItems = $input.all().map((item) => item.json);\nlet rows = inputItems;\nif (inputItems.length === 1 && Array.isArray(inputItems[0].data)) rows = inputItems[0].data;\n\nfunction strip(html) {\n  return String(html || '')\n    .replace(/<[^>]+>/g, ' ')\n    .replace(/&amp;/g, '&')\n    .replace(/&quot;/g, '\"')\n    .replace(/&#39;|&apos;/g, \"'\")\n    .replace(/&lt;/g, '<')\n    .replace(/&gt;/g, '>')\n    .replace(/&nbsp;/g, ' ')\n    .replace(/\\s+/g, ' ')\n    .trim();\n}\n\nfunction outletFromLink(link) {\n  try {\n    const host = new URL(link).hostname.replace(/^www\\./, '');\n    if (host.includes('ign.com')) return 'IGN';\n    if (host.includes('gamespot.com')) return 'GameSpot';\n    if (host.includes('polygon.com')) return 'Polygon';\n    if (host.includes('pcgamer.com')) return 'PC Gamer';\n    if (host.includes('eurogamer.net')) return 'Eurogamer';\n    return host;\n  } catch {\n    return 'Unknown';\n  }\n}\n\nconst seen = new Set();\nconst stories = [];\nfor (const row of rows) {\n  if (!row || row.error) continue;\n  const link = row.link || row.url || '';\n  const title = strip(row.title);\n  if (!title || !link || seen.has(link)) continue;\n  seen.add(link);\n  stories.push({\n    outlet: outletFromLink(link),\n    title,\n    link,\n    summary: strip(row.contentSnippet || row.content || row.description || '').slice(0, 320),\n  });\n  if (stories.length >= 24) break;\n}\n\nif (stories.length === 0) {\n  throw new Error('No gaming RSS items were fetched. Refusing to write an edition without sources.');\n}\n\nconst catalog = stories\n  .map((story, index) => (index + 1) + '. [' + story.outlet + '] ' + story.title + '\\n   ' + story.link + '\\n   ' + story.summary)\n  .join('\\n');\n\nconst prompt = [\n  'Write the ' + edition.editionTitle + ' of Gaming Pulse for ' + edition.date + '.',\n  'Use only the sources below. Do not invent quotes, prices, dates, or numbers.',\n  'Skip items that are not about video games.',\n  'Pick 3 to 5 stories. Each story is a level-3 markdown heading, one or two short paragraphs that name the outlet, and a markdown link.',\n  'Do not include a level-2 heading, a time label, an HTML anchor, or YAML frontmatter. The workflow adds those.',\n  'Return a JSON object with these keys:',\n  '- description: one line, 160 characters or fewer, no line break',\n  '- summary: one sentence lead for this edition',\n  '- tags: array of 2 to 6 lowercase tags, spaces written as hyphens',\n  '- markdown: the stories only',\n  '',\n  'Sources:',\n  catalog,\n].join('\\n');\n\nreturn [{ json: { prompt, storyCount: stories.length } }];\n"
+      }
+    },
+    {
+      "id": "867594a0-c28e-40f4-ab9f-9f7a0cae256c",
+      "name": "Write edition",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        1800,
+        0
+      ],
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "grok-4"
+        },
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You write one edition of Gaming Pulse, a daily gaming briefing. Respond with JSON only. Use only the sources in the user message. Never invent quotes, prices, patch numbers, or dates."
+            },
+            {
+              "role": "user",
+              "content": "={{ $json.prompt }}"
+            }
+          ]
+        },
+        "jsonOutput": true,
+        "options": {
+          "temperature": 0.4,
+          "maxTokens": 1800
+        }
+      },
+      "credentials": {
+        "openAiApi": {
+          "id": "PLACEHOLDER_OPENAI_COMPATIBLE",
+          "name": "OpenAI-compatible API (xAI or OpenAI)"
+        }
+      }
+    },
+    {
+      "id": "b93662b6-06e6-474f-a661-fd7d446c09ee",
+      "name": "Get today's report",
+      "type": "n8n-nodes-base.github",
+      "typeVersion": 1.1,
+      "position": [
+        2080,
+        0
+      ],
+      "parameters": {
+        "authentication": "accessToken",
+        "resource": "file",
+        "operation": "get",
+        "owner": {
+          "__rl": true,
+          "mode": "name",
+          "value": "t-el"
+        },
+        "repository": {
+          "__rl": true,
+          "mode": "name",
+          "value": "gaming-pulse"
+        },
+        "filePath": "={{ $('Resolve edition').first().json.filePath }}",
+        "asBinaryProperty": false,
+        "additionalParameters": {
+          "reference": "main"
+        }
+      },
+      "credentials": {
+        "githubApi": {
+          "id": "PLACEHOLDER_GITHUB_TOKEN",
+          "name": "GitHub personal access token (contents:write)"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "id": "6c05c63e-3574-49aa-ae86-e9ae5eb69adb",
+      "name": "Compose report file",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2360,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const edition = $('Resolve edition').first().json;\nconst llm = $('Write edition').first().json;\nconst file = $input.first().json;\n\nfunction unquote(value) {\n  let v = String(value ?? '').trim();\n  if (\n    (v.startsWith('\"') && v.endsWith('\"') && v.length >= 2) ||\n    (v.startsWith(\"'\") && v.endsWith(\"'\") && v.length >= 2)\n  ) {\n    v = v.slice(1, -1);\n  }\n  return v.replace(/\\\\n/g, ' ').replace(/\\\\\"/g, '\"').replace(/\\\\\\\\/g, '\\\\');\n}\n\nfunction yamlQuote(value) {\n  const s = String(value).replace(/\\r?\\n/g, ' ').trim();\n  return '\"' + s.replace(/\\\\/g, '\\\\\\\\').replace(/\"/g, '\\\\\"') + '\"';\n}\n\nfunction normalizeTag(tag) {\n  return String(tag)\n    .trim()\n    .toLowerCase()\n    .replace(/\\s+/g, '-')\n    .replace(/[^a-z0-9-]/g, '')\n    .replace(/-+/g, '-')\n    .replace(/^-|-$/g, '');\n}\n\nfunction splitFrontmatter(markdown) {\n  const match = String(markdown).match(/^---\\r?\\n([\\s\\S]*?)\\r?\\n---\\r?\\n?([\\s\\S]*)$/);\n  if (!match) return null;\n  return { frontmatter: match[1], body: match[2] };\n}\n\nfunction parseFrontmatter(frontmatter) {\n  const doc = { scalars: {}, tags: [], editions: [] };\n  let mode = null;\n  let current = null;\n  for (const line of frontmatter.split(/\\r?\\n/)) {\n    if (!line.trim()) continue;\n    if (mode === 'editions' && line.startsWith('  - ')) {\n      if (current) doc.editions.push(current);\n      current = {};\n      const rest = line.slice(4);\n      const idx = rest.indexOf(':');\n      if (idx !== -1) current[rest.slice(0, idx).trim()] = unquote(rest.slice(idx + 1));\n      continue;\n    }\n    if (mode === 'editions' && line.startsWith('    ') && current) {\n      const rest = line.trim();\n      const idx = rest.indexOf(':');\n      if (idx !== -1) current[rest.slice(0, idx).trim()] = unquote(rest.slice(idx + 1));\n      continue;\n    }\n    if (mode === 'tags' && line.startsWith('  - ')) {\n      doc.tags.push(unquote(line.slice(4)));\n      continue;\n    }\n    if (/^[A-Za-z0-9_-]+:/.test(line)) {\n      if (current) {\n        doc.editions.push(current);\n        current = null;\n      }\n      const idx = line.indexOf(':');\n      const key = line.slice(0, idx).trim();\n      const value = line.slice(idx + 1).trim();\n      if (key === 'tags' && value === '') {\n        mode = 'tags';\n        continue;\n      }\n      if (key === 'editions' && value === '') {\n        mode = 'editions';\n        continue;\n      }\n      mode = null;\n      doc.scalars[key] = unquote(value);\n    }\n  }\n  if (current) doc.editions.push(current);\n  return doc;\n}\n\nfunction emitFrontmatter(doc) {\n  const lines = [];\n  lines.push(`title: ${yamlQuote(doc.scalars.title)}`);\n  lines.push(`date: ${doc.scalars.date}`);\n  lines.push(`description: ${yamlQuote(doc.scalars.description)}`);\n  const tags = doc.tags.filter(Boolean);\n  if (tags.length === 0) lines.push('tags: []');\n  else {\n    lines.push('tags:');\n    for (const tag of tags) lines.push(`  - ${yamlQuote(tag)}`);\n  }\n  if (doc.scalars.cover) lines.push(`cover: ${yamlQuote(doc.scalars.cover)}`);\n  lines.push(`updated: ${doc.scalars.updated}`);\n  lines.push(`sample: ${doc.scalars.sample === true || doc.scalars.sample === 'true' ? 'true' : 'false'}`);\n  const known = new Set(['title', 'date', 'description', 'tags', 'cover', 'updated', 'sample', 'editions']);\n  for (const key of Object.keys(doc.scalars)) {\n    if (!known.has(key) && doc.scalars[key] !== '') lines.push(`${key}: ${yamlQuote(doc.scalars[key])}`);\n  }\n  lines.push('editions:');\n  for (const ed of doc.editions) {\n    lines.push(`  - id: ${ed.id}`);\n    lines.push(`    title: ${yamlQuote(ed.title)}`);\n    lines.push(`    publishedAt: ${ed.publishedAt}`);\n    if (ed.summary) lines.push(`    summary: ${yamlQuote(ed.summary)}`);\n    for (const key of Object.keys(ed)) {\n      if (!['id', 'title', 'publishedAt', 'summary'].includes(key) && ed[key] !== '') {\n        lines.push(`    ${key}: ${yamlQuote(ed[key])}`);\n      }\n    }\n  }\n  return lines.join('\\n');\n}\n\nfunction extractPayload(llm) {\n  let content = llm?.message?.content ?? llm?.content ?? llm?.text ?? llm;\n  if (content && typeof content === 'object' && content.content && !content.markdown) {\n    content = content.content;\n  }\n  if (typeof content === 'string') {\n    const trimmed = content.trim().replace(/^```(?:json)?\\s*/i, '').replace(/```$/, '').trim();\n    content = JSON.parse(trimmed);\n  }\n  if (!content || typeof content !== 'object' || Array.isArray(content)) {\n    throw new Error('LLM output was not a JSON object with description, summary, tags, and markdown.');\n  }\n  return content;\n}\n\nfunction decodeContent(content) {\n  const raw = String(content);\n  if (raw.trimStart().startsWith('---')) return raw;\n  const compact = raw.replace(/\\n/g, '');\n  const decoded = Buffer.from(compact, 'base64').toString('utf8');\n  return decoded;\n}\n\nfunction isMissing(file) {\n  if (!file || typeof file !== 'object') return true;\n  if (file.sha && file.content) return false;\n  const msg =\n    typeof file.error === 'string'\n      ? file.error\n      : file.error && typeof file.error.message === 'string'\n        ? file.error.message\n        : JSON.stringify(file.error || file.message || '');\n  if (/404|not found/i.test(msg)) return true;\n  if (!file.content) {\n    throw new Error(`Could not read today's report (${msg || 'unknown error'}). Refusing to create a duplicate.`);\n  }\n  return false;\n}\n\nfunction upsertSection(body, editionId, section) {\n  const re = new RegExp(`<span id=\"${editionId}\"><\\\\/span>[\\\\s\\\\S]*?(?=<span id=\"[a-z0-9-]+\"><\\\\/span>|$)`);\n  const block = section.replace(/\\s*$/, '\\n');\n  if (re.test(body)) return body.replace(re, block);\n  const trimmed = String(body || '').replace(/\\s*$/, '');\n  if (!trimmed) return `\\n${block}`;\n  return `${trimmed}\\n\\n${block}`;\n}\n\nconst payload = extractPayload(llm);\nconst story = String(payload.markdown || '')\n  .replace(/^---[\\s\\S]*?\\n---\\s*/, '')\n  .replace(new RegExp(`^<span id=\"${edition.editionId}\"><\\\\/span>\\\\s*`, 'i'), '')\n  .replace(new RegExp(`^##\\\\s+${edition.editionTitle}\\\\s*`, 'i'), '')\n  .replace(/^_[^_\\n]+_\\s*/, '')\n  .trim();\nif (!story) throw new Error('LLM returned an empty edition.');\n\nconst description = String(payload.description || payload.summary || '')\n  .replace(/\\s+/g, ' ')\n  .trim()\n  .slice(0, 180);\nconst summary = String(payload.summary || description).replace(/\\s+/g, ' ').trim().slice(0, 240);\nif (!description) throw new Error('LLM returned no description.');\n\nconst incomingTags = Array.isArray(payload.tags)\n  ? payload.tags\n  : typeof payload.tags === 'string'\n    ? payload.tags.split(',')\n    : [];\n\nconst [year, month, day] = String(edition.date).split('-').map(Number);\nconst longDate = new Intl.DateTimeFormat('en-US', {\n  timeZone: 'UTC',\n  month: 'long',\n  day: 'numeric',\n  year: 'numeric',\n}).format(new Date(Date.UTC(year, month - 1, day)));\n\nconst section = [\n  `<span id=\"${edition.editionId}\"></span>`,\n  '',\n  `## ${edition.editionTitle}`,\n  '',\n  `_${edition.timeLabel}_`,\n  '',\n  story,\n  '',\n].join('\\n');\n\nconst order = { morning: 0, afternoon: 1, evening: 2 };\nlet doc;\nlet body;\nconst exists = !isMissing(file);\n\nif (!exists) {\n  doc = {\n    scalars: {\n      title: `Gaming Pulse — ${longDate}`,\n      date: edition.date,\n      description,\n      updated: edition.updated,\n      sample: 'false',\n    },\n    tags: [],\n    editions: [],\n  };\n  body = '';\n} else {\n  const decoded = decodeContent(file.content);\n  const parsed = splitFrontmatter(decoded);\n  if (!parsed) throw new Error('Existing report has no frontmatter. Refusing to overwrite it.');\n  doc = parseFrontmatter(parsed.frontmatter);\n  doc.scalars.date = edition.date || doc.scalars.date;\n  doc.scalars.updated = edition.updated;\n  doc.scalars.description = description;\n  if (!doc.scalars.title) doc.scalars.title = `Gaming Pulse — ${longDate}`;\n  body = parsed.body;\n}\n\nconst merged = [];\nfor (const tag of [...doc.tags, ...incomingTags]) {\n  const clean = normalizeTag(tag);\n  if (clean && !merged.includes(clean)) merged.push(clean);\n}\ndoc.tags = merged.slice(0, 12);\n\nconst nextEdition = {\n  id: edition.editionId,\n  title: edition.editionTitle,\n  publishedAt: edition.publishedAt,\n  summary,\n};\nconst without = doc.editions.filter((item) => item.id !== edition.editionId);\nwithout.push(nextEdition);\nwithout.sort((a, b) => (order[a.id] ?? 9) - (order[b.id] ?? 9) || String(a.id).localeCompare(String(b.id)));\ndoc.editions = without;\n\nbody = upsertSection(body, edition.editionId, section);\nconst fileContent = `---\\n${emitFrontmatter(doc)}\\n---\\n${body.replace(/^\\n?/, '\\n')}`.replace(/\\n{3,}/g, '\\n\\n').replace(/\\s*$/, '\\n');\n\nconst verb = exists ? 'Update' : 'Add';\nreturn [\n  {\n    json: {\n      exists,\n      filePath: edition.filePath,\n      fileContent,\n      commitMessage: `${verb} ${edition.editionId} edition for ${edition.date}`,\n    },\n  },\n];\n"
+      }
+    },
+    {
+      "id": "d79ccd75-70e5-4273-8f5d-e4f44cd00b97",
+      "name": "Report file exists?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2640,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "file-exists",
+              "leftValue": "={{ $json.exists }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "88f822df-64cf-4593-a9d9-671ee348ab78",
+      "name": "Update report on main",
+      "type": "n8n-nodes-base.github",
+      "typeVersion": 1.1,
+      "position": [
+        2960,
+        -140
+      ],
+      "parameters": {
+        "authentication": "accessToken",
+        "resource": "file",
+        "operation": "edit",
+        "owner": {
+          "__rl": true,
+          "mode": "name",
+          "value": "t-el"
+        },
+        "repository": {
+          "__rl": true,
+          "mode": "name",
+          "value": "gaming-pulse"
+        },
+        "filePath": "={{ $json.filePath }}",
+        "binaryData": false,
+        "fileContent": "={{ $json.fileContent }}",
+        "commitMessage": "={{ $json.commitMessage }}",
+        "additionalParameters": {
+          "branch": {
+            "branch": "main"
+          },
+          "author": {
+            "name": "Gaming Pulse",
+            "email": "gaming-pulse@example.com"
+          }
+        }
+      },
+      "credentials": {
+        "githubApi": {
+          "id": "PLACEHOLDER_GITHUB_TOKEN",
+          "name": "GitHub personal access token (contents:write)"
+        }
+      }
+    },
+    {
+      "id": "3e6c461b-bd7f-405d-80be-3bf68c94b9f0",
+      "name": "Create report on main",
+      "type": "n8n-nodes-base.github",
+      "typeVersion": 1.1,
+      "position": [
+        2960,
+        160
+      ],
+      "parameters": {
+        "authentication": "accessToken",
+        "resource": "file",
+        "operation": "create",
+        "owner": {
+          "__rl": true,
+          "mode": "name",
+          "value": "t-el"
+        },
+        "repository": {
+          "__rl": true,
+          "mode": "name",
+          "value": "gaming-pulse"
+        },
+        "filePath": "={{ $json.filePath }}",
+        "binaryData": false,
+        "fileContent": "={{ $json.fileContent }}",
+        "commitMessage": "={{ $json.commitMessage }}",
+        "additionalParameters": {
+          "branch": {
+            "branch": "main"
+          },
+          "author": {
+            "name": "Gaming Pulse",
+            "email": "gaming-pulse@example.com"
+          }
+        }
+      },
+      "credentials": {
+        "githubApi": {
+          "id": "PLACEHOLDER_GITHUB_TOKEN",
+          "name": "GitHub personal access token (contents:write)"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule 8am 2pm 8pm ET": {
+      "main": [
+        [
+          {
+            "node": "Resolve edition",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolve edition": {
+      "main": [
+        [
+          {
+            "node": "Split feeds",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split feeds": {
+      "main": [
+        [
+          {
+            "node": "Read RSS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read RSS": {
+      "main": [
+        [
+          {
+            "node": "Aggregate stories",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate stories": {
+      "main": [
+        [
+          {
+            "node": "Build source brief",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build source brief": {
+      "main": [
+        [
+          {
+            "node": "Write edition",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write edition": {
+      "main": [
+        [
+          {
+            "node": "Get today's report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get today's report": {
+      "main": [
+        [
+          {
+            "node": "Compose report file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compose report file": {
+      "main": [
+        [
+          {
+            "node": "Report file exists?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Report file exists?": {
+      "main": [
+        [
+          {
+            "node": "Update report on main",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create report on main",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/New_York"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

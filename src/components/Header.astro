@@ -1,0 +1,45 @@
+---
+import { href } from '../lib/paths';
+
+const path = Astro.url.pathname;
+
+const links = [
+  { href: href('/'), label: 'Today', match: (value: string) => value === href('/') },
+  { href: href('/archive/'), label: 'Archive', match: (value: string) => value.startsWith(href('/archive/')) },
+  { href: href('/tags/'), label: 'Tags', match: (value: string) => value.startsWith(href('/tags/')) },
+  { href: href('/rss.xml'), label: 'RSS', match: (value: string) => value.endsWith('/rss.xml') },
+];
+---
+
+<header class="site-header">
+  <div class="header-inner">
+    <a class="brand" href={href('/')}>
+      <span class="brand-mark" aria-hidden="true"></span>
+      <span class="brand-text">
+        <span class="brand-kicker">Daily briefing</span>
+        <span class="brand-name">Gaming Pulse</span>
+      </span>
+    </a>
+    <nav class="nav-inline" aria-label="Primary">
+      {
+        links.map((link) => (
+          <a href={link.href} aria-current={link.match(path) ? 'page' : undefined}>
+            {link.label}
+          </a>
+        ))
+      }
+    </nav>
+    <details class="nav-disclosure">
+      <summary>Menu</summary>
+      <nav aria-label="Primary mobile">
+        {
+          links.map((link) => (
+            <a href={link.href} aria-current={link.match(path) ? 'page' : undefined}>
+              {link.label}
+            </a>
+          ))
+        }
+      </nav>
+    </details>
+  </div>
+</header>
